@@ -63,21 +63,25 @@ jobs:
       run: |
         docker push ${{ secrets.ECR_BACKEND_REPO }}:latest
         docker push ${{ secrets.ECR_FRONTEND_REPO }}:latest
-
+    
     # Deploy to EC2
-    - name: Deploy EC2 via SSM
+    - name: Deploy to EC2
       run: |
         aws ssm send-command \
         --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
         --document-name "AWS-RunShellScript" \
-        --parameters commands='[
-        "docker stop backend || true",
-        "docker rm backend || true",
-        "docker stop frontend || true",
-        "docker rm frontend || true",
-        "aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ secrets.ECR_BACKEND_REPO }}",
-        "docker pull ${{ secrets.ECR_BACKEND_REPO }}:latest",
-        "docker pull ${{ secrets.ECR_FRONTEND_REPO }}:latest",
-        "docker run -d -p 5000:5000 --name backend ${{ secrets.ECR_BACKEND_REPO }}:latest",
-        "docker run -d -p 80:80 --name frontend ${{ secrets.ECR_FRONTEND_REPO }}:latest"
+        --comment "Deploy containers" \
+        --parameters 'commands=[
+        "sudo docker stop backend || true",
+        "sudo docker rm backend || true",
+        "sudo docker stop frontend || true",
+        "sudo docker rm frontend || true",
+
+        "aws ecr get-login-password --region ap-south-1 | sudo docker login --username AWS --password-stdin 732132791905.dkr.ecr.ap-south-1.amazonaws.com",
+
+        "sudo docker pull 732132791905.dkr.ecr.ap-south-1.amazonaws.com/node-backend:latest",
+        "sudo docker pull 732132791905.dkr.ecr.ap-south-1.amazonaws.com/react-frontend:latest",
+
+        "sudo docker run -d -p 5000:5000 --name backend 732132791905.dkr.ecr.ap-south-1.amazonaws.com/node-backend:latest",
+        "sudo docker run -d -p 80:80 --name frontend 732132791905.dkr.ecr.ap-south-1.amazonaws.com/react-frontend:latest"
         ]'
