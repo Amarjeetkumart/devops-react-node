@@ -5,7 +5,8 @@ function App() {
   const [msg, setMsg] = useState("Loading connection...");
 
   useEffect(() => {
-    axios.get("http://localhost:5000/api/message")
+    // axios.get("http://localhost:5000/api/message")
+    axios.get("/api/message")
       .then(res => setMsg(res.data.message))
       .catch(err => {
         console.log(err);

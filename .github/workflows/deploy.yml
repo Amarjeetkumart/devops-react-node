@@ -81,7 +81,10 @@ jobs:
 
         "sudo docker pull 732132791905.dkr.ecr.ap-south-1.amazonaws.com/node-backend:latest",
         "sudo docker pull 732132791905.dkr.ecr.ap-south-1.amazonaws.com/react-frontend:latest",
+        # Create network if not exists
+        "sudo docker network create app-network || true",
 
-        "sudo docker run -d -p 5000:5000 --name backend 732132791905.dkr.ecr.ap-south-1.amazonaws.com/node-backend:latest",
-        "sudo docker run -d -p 80:80 --name frontend 732132791905.dkr.ecr.ap-south-1.amazonaws.com/react-frontend:latest"
+        "sudo docker run -d --name backend --network app-network -p 5000:5000 732132791905.dkr.ecr.ap-south-1.amazonaws.com/node-backend:latest",
+
+        "sudo docker run -d --name frontend --network app-network -p 80:80 732132791905.dkr.ecr.ap-south-1.amazonaws.com/react-frontend:latest"
         ]'
