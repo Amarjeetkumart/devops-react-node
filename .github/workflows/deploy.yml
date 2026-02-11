@@ -1,0 +1,83 @@
+name: CI-CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # SonarQube
+    - name: Sonar Scan
+      uses: SonarSource/sonarqube-scan-action@v2
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+    # Configure AWS OIDC
+    - name: Configure AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    # Login ECR
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password --region $AWS_REGION | \
+        docker login --username AWS --password-stdin ${{ secrets.ECR_BACKEND_REPO }}
+
+    # Build Images
+    - name: Build Docker Images
+      run: |
+        docker build -t backend ./backend
+        docker build -t frontend ./frontend
+
+    # Trivy Scan
+    - name: Security Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: backend
+        format: table
+        exit-code: 0
+
+    # Tag
+    - name: Tag Images
+      run: |
+        docker tag backend:latest ${{ secrets.ECR_BACKEND_REPO }}:latest
+        docker tag frontend:latest ${{ secrets.ECR_FRONTEND_REPO }}:latest
+
+    # Push
+    - name: Push to ECR
+      run: |
+        docker push ${{ secrets.ECR_BACKEND_REPO }}:latest
+        docker push ${{ secrets.ECR_FRONTEND_REPO }}:latest
+
+    # Deploy to EC2
+    - name: Deploy EC2 via SSM
+      run: |
+        aws ssm send-command \
+        --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+        --document-name "AWS-RunShellScript" \
+        --parameters commands='[
+        "docker stop backend || true",
+        "docker rm backend || true",
+        "docker stop frontend || true",
+        "docker rm frontend || true",
+        "aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ secrets.ECR_BACKEND_REPO }}",
+        "docker pull ${{ secrets.ECR_BACKEND_REPO }}:latest",
+        "docker pull ${{ secrets.ECR_FRONTEND_REPO }}:latest",
+        "docker run -d -p 5000:5000 --name backend ${{ secrets.ECR_BACKEND_REPO }}:latest",
+        "docker run -d -p 80:80 --name frontend ${{ secrets.ECR_FRONTEND_REPO }}:latest"
+        ]'
